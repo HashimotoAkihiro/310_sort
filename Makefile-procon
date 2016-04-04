@@ -1,0 +1,96 @@
+#############################################################################
+# The 2nd ARC/CPSY/RECONF High-Performance Computer System Design Contest   #
+# From MieruEMB System V1.0  2011-10-01                Arch Lab. TOKYO TECH #
+#############################################################################
+
+ifdef	TRACE
+VARIANT = -trace
+endif
+
+ifndef	DATASIZE
+DATASIZE = 300
+endif
+ifndef	RANDSEED
+RANDSEED = 3
+endif
+
+TARGET  = 310sort
+OBJS    = startup.o main$(VARIANT).o
+IMGSIZE = 256
+
+##
+#CMDPREF = /home/share/cad/mipsel-contest/usr/bin/
+#
+#MIPSCC  = $(CMDPREF)mipsel-linux-gcc
+#MIPSAS  = $(CMDPREF)mipsel-linux-as
+#MIPSLD  = $(CMDPREF)mipsel-linux-ld
+#OBJDUMP = $(CMDPREF)mipsel-linux-objdump
+#MEMGEN  = $(CMDPREF)memgen
+#SIMPROG = $(CMDPREF)SimMips
+##
+CMDPREF = /opt/mips-tools/bin/
+MIPSCC  = $(CMDPREF)mipsel-elf-gcc
+MIPSAS  = $(CMDPREF)mipsel-elf-as
+MIPSLD  = $(CMDPREF)mipsel-elf-ld
+OBJDUMP = $(CMDPREF)mipsel-elf-objdump
+MEMGEN  = $(CMDPREF)memgen
+SIMPROG = $(CMDPREF)SimMips
+
+
+ifndef TARGET_ARCH
+TARGET_ARCH = __XILINX__
+endif
+
+AFLAGS  = -march=x5900
+#CFLAGS  = -D$(TARGET_ARCH) -Wall -O2 --save-temps
+CFLAGS  = -D$(TARGET_ARCH) -Wall -O2 --save-temps -march=x5900 -msoft-float
+#CFLAGS  = -D$(TARGET_ARCH) -Wall -O2 --save-temps -march=x5900 -msoft-float -G0
+LFLAGS  =
+
+.SUFFIXES:
+.SUFFIXES: .o .c .S
+######################################################################
+all:	fpga data
+	cat $(TARGET).bin $(TARGET).dat > $(TARGET)512.bin
+#	cp $(TARGET)512.bin ../../bin
+
+fpga:
+	$(MAKE) clean
+	cp startup$(TARGET_ARCH).S startup.S
+	$(MAKE) $(TARGET)
+	$(MAKE) image
+
+data:
+	gcc -Wall data.c -o data_gen
+	./data_gen $(DATASIZE) $(RANDSEED)
+
+#main.c:  ../lib/lib.c
+main$(VARIANT).c:  ../lib/lib.c
+
+$(TARGET): $(OBJS)
+	$(MIPSLD) $(LFLAGS) -T stdld.script $(OBJS) -o $(TARGET)
+	$(OBJDUMP) -d -M reg-names=numeric $(TARGET) > $(TARGET).asm
+
+.c.o:
+	$(MIPSCC) $(CFLAGS) -c $(@D)/$(<F) -o $(@D)/$(@F)
+
+.S.o:
+	$(MIPSCC) $(AFLAGG) -c $(@D)/$(<F) -o $(@D)/$(@F)
+
+image:
+	$(MEMGEN) -b $(TARGET) $(IMGSIZE) > $(TARGET).bin
+
+dump:
+	$(OBJDUMP) -D $(TARGET)
+
+test:	$(TARGET) data
+	cp $(TARGET).dat data.bin
+	$(SIMPROG) -M sim.m $(TARGET)
+
+read:
+	readelf -a $(TARGET)
+
+clean:
+	rm -f *.o *.i *.s *~ log.txt $(TARGET) $(TARGET).asm *.bin a.out
+	rm -f $(TARGET).dat data_gen
+######################################################################
